@@ -24,14 +24,6 @@ pipeline {
 
     stages {
 
-        stage('Checkout') {
-            steps {
-
-                git branch: 'master',
-                url: 'https://github.com/manjuntha1963/nodejs.git'
-            }
-        }
-
         stage('Run Prerequisites') {
             steps {
 
