@@ -105,45 +105,7 @@ pipeline {
                     aws eks --region ${AWS_REGION} update-kubeconfig --name ${EKS_CLUSTER_NAME}
 
                     # Deploy app
-                    kubectl apply -f - <<EOF
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: ${DEPLOYMENT_NAME}
-  namespace: ${K8S_NAMESPACE}
-spec:
-  replicas: 2
-  selector:
-    matchLabels:
-      app: ${DEPLOYMENT_NAME}
-  template:
-    metadata:
-      labels:
-        app: ${DEPLOYMENT_NAME}
-    spec:
-      containers:
-      - name: ${DEPLOYMENT_NAME}
-        image: ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO_NAME}:${IMAGE_TAG}
-        ports:
-        - containerPort: 80
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: ${SERVICE_NAME}
-  namespace: ${K8S_NAMESPACE}
-spec:
-  selector:
-    app: ${DEPLOYMENT_NAME}
-  ports:
-    - protocol: TCP
-      port: 80
-      targetPort: 3000
-  type: LoadBalancer
-EOF
-                '''
-            }
-        }
+                    kubectl apply -f 
 
         stage('Install Monitoring Stack & Import Kubernetes Dashboard') {
             steps {
