@@ -1,75 +1,109 @@
-curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh
+```bash
+#!/bin/bash
 
-curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+set -e
 
-### Install Chocolatey to Install Terraform on Windows Server
-Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+echo "Updating system..."
+sudo apt update -y && sudo apt upgrade -y
 
-choco install terraform -y
+# Install required packages
+sudo apt install -y \
+    curl \
+    wget \
+    unzip \
+    git \
+    apt-transport-https \
+    ca-certificates \
+    gnupg \
+    lsb-release \
+    software-properties-common \
+    gettext-base
 
-terraform -version
-
-# Update system
-sudo apt update && sudo apt upgrade -y
-
-# Install Node.js (LTS recommended)
+# Install Node.js LTS
 curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
 sudo apt install -y nodejs
 
+# Install PM2
 sudo npm install -g pm2
 
-Verify installation:
+# Install Docker
+sudo apt install -y docker.io
+sudo systemctl enable docker
+sudo systemctl start docker
 
-pm2 -v
-
-# Check versions
-node -v
-npm -v
-
+# Docker permissions
+sudo usermod -aG docker jenkins
+sudo usermod -aG docker ubuntu
+sudo chmod 666 /var/run/docker.sock
 
 # Install AWS CLI v2
-
-sudo apt install unzip -y
 curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-unzip awscliv2.zip
+unzip -o awscliv2.zip
 sudo ./aws/install
 
-
 # Install kubectl
+curl -LO "https://dl.k8s.io/release/$(curl -L -s \
+https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
 
-curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
 chmod +x kubectl
 sudo mv kubectl /usr/local/bin/
 
-
-# EKSCTl  cli instalation
-
+# Install eksctl
 ARCH=amd64
 PLATFORM=$(uname -s)_$ARCH
 
-curl -sLO "https://github.com/eksctl-io/eksctl/releases/latest/download/eksctl_$PLATFORM.tar.gz"
+curl -sLO \
+"https://github.com/eksctl-io/eksctl/releases/latest/download/eksctl_$PLATFORM.tar.gz"
 
-# (Optional) Verify checksum
-curl -sL "https://github.com/eksctl-io/eksctl/releases/latest/download/eksctl_checksums.txt" | grep $PLATFORM | sha256sum --check
+tar -xzf eksctl_$PLATFORM.tar.gz -C /tmp
 
-tar -xzf eksctl_$PLATFORM.tar.gz -C /tmp && rm eksctl_$PLATFORM.tar.gz
+sudo install -m 0755 /tmp/eksctl /usr/local/bin
 
-sudo install -m 0755 /tmp/eksctl /usr/local/bin && rm /tmp/eksctl
+# Install Terraform
+curl -fsSL https://apt.releases.hashicorp.com/gpg | \
+sudo gpg --dearmor -o \
+/usr/share/keyrings/hashicorp-archive-keyring.gpg
 
+echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] \
+https://apt.releases.hashicorp.com \
+$(lsb_release -cs) main" | \
+sudo tee /etc/apt/sources.list.d/hashicorp.list
 
-# Install Docker
 sudo apt update
-sudo apt  install docker.io -y
+sudo apt install -y terraform
 
-# Allow jenkins and ubuntu users to run docker
-sudo usermod -aG docker jenkins
-sudo usermod -aG docker ubuntu
+# Install Helm
+curl -fsSL \
+https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
 
-# Restart Jenkins to apply group changes
+# Install Trivy
+curl -sfL \
+https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh
+
+sudo mv bin/trivy /usr/local/bin/
+
+# Restart Jenkins
 sudo systemctl restart jenkins
 
-Step 2: Run SonarQube in Docker
-# Pull and run SonarQube (LTS version)
-sudo docker run -d --name sonarqube \
-  -p 9000:9000 \
-  sonarqube:lts
+# Run SonarQube
+sudo docker run -d \
+--name sonarqube \
+-p 9000:9000 \
+sonarqube:lts || true
+
+# Verify installations
+echo "Checking versions..."
+
+node -v
+npm -v
+docker --version
+terraform --version
+kubectl version --client
+aws --version
+trivy --version
+helm version
+eksctl version
+jenkins --version
+
+echo "Prerequisites installed successfully."
+```
