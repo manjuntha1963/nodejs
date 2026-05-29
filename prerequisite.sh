@@ -1,3 +1,4 @@
+```bash
 #!/bin/bash
 
 set -e
@@ -5,6 +6,7 @@ set -e
 export DEBIAN_FRONTEND=noninteractive
 
 echo "Updating system..."
+
 sudo apt update -y
 sudo apt upgrade -y
 
@@ -23,22 +25,12 @@ sudo apt install -y \
 
 # Install Node.js LTS
 curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo bash -
+
 sudo apt install -y nodejs
 
 # Install PM2
 sudo npm install -g pm2
 
-# Install Docker
-sudo apt install -y docker.io
-
-sudo systemctl enable docker
-sudo systemctl start docker
-
-# Docker permissions
-sudo usermod -aG docker jenkins || true
-sudo usermod -aG docker ubuntu || true
-
-sudo chmod 666 /var/run/docker.sock || true
 
 # Install or Update AWS CLI v2
 curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" \
@@ -59,6 +51,7 @@ curl -LO "https://dl.k8s.io/release/$(curl -L -s \
 https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
 
 chmod +x kubectl
+
 sudo mv kubectl /usr/local/bin/
 
 # Install eksctl
@@ -72,18 +65,27 @@ tar -xzf eksctl_$PLATFORM.tar.gz -C /tmp
 
 sudo install -m 0755 /tmp/eksctl /usr/local/bin
 
-# Install Terraform
-curl -fsSL https://apt.releases.hashicorp.com/gpg | \
-sudo gpg --dearmor -o \
-/usr/share/keyrings/hashicorp-archive-keyring.gpg
+# Install Terraform only if missing
+if ! command -v terraform >/dev/null 2>&1; then
 
-echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] \
-https://apt.releases.hashicorp.com \
-$(lsb_release -cs) main" | \
-sudo tee /etc/apt/sources.list.d/hashicorp.list
+    echo "Installing Terraform..."
 
-sudo apt update
-sudo apt install -y terraform
+    curl -fsSL https://apt.releases.hashicorp.com/gpg | \
+    gpg --dearmor | \
+    sudo tee /usr/share/keyrings/hashicorp-archive-keyring.gpg > /dev/null
+
+    echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] \
+    https://apt.releases.hashicorp.com \
+    $(lsb_release -cs) main" | \
+    sudo tee /etc/apt/sources.list.d/hashicorp.list
+
+    sudo apt update
+
+    sudo apt install -y terraform
+
+else
+    echo "Terraform already installed"
+fi
 
 # Install Helm
 curl -fsSL \
@@ -95,20 +97,11 @@ https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | s
 
 sudo mv bin/trivy /usr/local/bin/
 
-# Run SonarQube only if not already running
-if ! sudo docker ps -a --format '{{.Names}}' | grep -q '^sonarqube$'; then
-    sudo docker run -d \
-    --name sonarqube \
-    -p 9000:9000 \
-    sonarqube:lts
-fi
-
 # Verify installations
 echo "Checking versions..."
 
 node -v
 npm -v
-docker --version
 terraform --version
 kubectl version --client
 aws --version
