@@ -62,8 +62,7 @@ pipeline {
 
         stage('Scan Docker Image') {
             steps {
-                sh '''
-                    curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh
+                sh '''       
                     ./bin/trivy image ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO_NAME}:${IMAGE_TAG} || echo "Vulnerabilities found"
                 '''
             }
@@ -90,22 +89,14 @@ pipeline {
             }
         }
 
-        stage('Install Helm') {
-            steps {
-                sh '''
-                    curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
-                    helm version
-                '''
-            }
-        }
-
         stage('Deploy to EKS') {
             steps {
                 sh '''
                     aws eks --region ${AWS_REGION} update-kubeconfig --name ${EKS_CLUSTER_NAME}
 
                     # Deploy app
-                    kubectl apply -f 
+                    kubectl apply -f deployment.yaml
+                    kubectl apply -f service.yaml
 
         stage('Install Monitoring Stack & Import Kubernetes Dashboard') {
             steps {
