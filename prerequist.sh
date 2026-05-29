@@ -1,10 +1,12 @@
 #!/bin/bash
 
 set -e
+
 export DEBIAN_FRONTEND=noninteractive
 
 echo "Updating system..."
-sudo apt update -y && sudo apt upgrade -y
+sudo apt update -y
+sudo apt upgrade -y
 
 # Install required packages
 sudo apt install -y \
@@ -20,7 +22,7 @@ sudo apt install -y \
     gettext-base
 
 # Install Node.js LTS
-curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
+curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo bash -
 sudo apt install -y nodejs
 
 # Install PM2
@@ -28,17 +30,19 @@ sudo npm install -g pm2
 
 # Install Docker
 sudo apt install -y docker.io
+
 sudo systemctl enable docker
 sudo systemctl start docker
 
 # Docker permissions
-sudo usermod -aG docker jenkins
-sudo usermod -aG docker ubuntu
-sudo chmod 666 /var/run/docker.sock
+sudo usermod -aG docker jenkins || true
+sudo usermod -aG docker ubuntu || true
 
-# Install AWS CLI v2
+sudo chmod 666 /var/run/docker.sock || true
+
 # Install or Update AWS CLI v2
-curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" \
+-o "awscliv2.zip"
 
 unzip -o awscliv2.zip
 
@@ -91,14 +95,13 @@ https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | s
 
 sudo mv bin/trivy /usr/local/bin/
 
-# Restart Jenkins
-sudo systemctl restart jenkins
-
-# Run SonarQube
-sudo docker run -d \
---name sonarqube \
--p 9000:9000 \
-sonarqube:lts || true
+# Run SonarQube only if not already running
+if ! sudo docker ps -a --format '{{.Names}}' | grep -q '^sonarqube$'; then
+    sudo docker run -d \
+    --name sonarqube \
+    -p 9000:9000 \
+    sonarqube:lts
+fi
 
 # Verify installations
 echo "Checking versions..."
@@ -112,7 +115,5 @@ aws --version
 trivy --version
 helm version
 eksctl version
-jenkins --version
 
 echo "Prerequisites installed successfully."
-```
