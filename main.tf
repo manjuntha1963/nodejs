@@ -6,11 +6,24 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 5.0"
     }
+
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.0"
+    }
   }
 }
 
 provider "aws" {
   region = "us-east-1"
+}
+
+# -----------------------------
+# Random Suffix
+# -----------------------------
+
+resource "random_id" "eks_suffix" {
+  byte_length = 4
 }
 
 # -----------------------------
@@ -100,8 +113,8 @@ resource "aws_route_table_association" "public_2_assoc" {
 # -----------------------------
 
 resource "aws_security_group" "eks_sg" {
-  name   = "eks-security-group"
-  vpc_id = aws_vpc.eks_vpc.id
+  name_prefix = "eks-security-group-"
+  vpc_id      = aws_vpc.eks_vpc.id
 
   ingress {
     from_port   = 0
@@ -127,7 +140,7 @@ resource "aws_security_group" "eks_sg" {
 # -----------------------------
 
 resource "aws_iam_role" "eks_cluster_role" {
-  name = "eks-cluster-role"
+  name_prefix = "eks-cluster-role-"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -142,6 +155,10 @@ resource "aws_iam_role" "eks_cluster_role" {
       Action = "sts:AssumeRole"
     }]
   })
+
+  tags = {
+    Name = "eks-cluster-role"
+  }
 }
 
 resource "aws_iam_role_policy_attachment" "eks_cluster_policy" {
@@ -159,13 +176,13 @@ resource "aws_iam_role_policy_attachment" "eks_service_policy" {
 # -----------------------------
 
 resource "aws_eks_cluster" "eks_cluster" {
-  name     = "my-eks-cluster"
+  name     = "my-eks-cluster-${random_id.eks_suffix.hex}"
   role_arn = aws_iam_role.eks_cluster_role.arn
 
   version = "1.30"
 
   vpc_config {
-    subnet_ids         = [
+    subnet_ids = [
       aws_subnet.public_1.id,
       aws_subnet.public_2.id
     ]
@@ -179,6 +196,10 @@ resource "aws_eks_cluster" "eks_cluster" {
     aws_iam_role_policy_attachment.eks_cluster_policy,
     aws_iam_role_policy_attachment.eks_service_policy
   ]
+
+  tags = {
+    Name = "my-eks-cluster"
+  }
 }
 
 # -----------------------------
@@ -186,7 +207,7 @@ resource "aws_eks_cluster" "eks_cluster" {
 # -----------------------------
 
 resource "aws_iam_role" "eks_node_role" {
-  name = "eks-node-group-role"
+  name_prefix = "eks-node-group-role-"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -201,6 +222,10 @@ resource "aws_iam_role" "eks_node_role" {
       Action = "sts:AssumeRole"
     }]
   })
+
+  tags = {
+    Name = "eks-node-group-role"
+  }
 }
 
 resource "aws_iam_role_policy_attachment" "eks_worker_node" {
@@ -229,7 +254,7 @@ resource "aws_iam_role_policy_attachment" "eks_ssm_policy" {
 
 resource "aws_eks_node_group" "eks_nodes" {
   cluster_name    = aws_eks_cluster.eks_cluster.name
-  node_group_name = "eks-node-group"
+  node_group_name = "eks-node-group-${random_id.eks_suffix.hex}"
 
   node_role_arn = aws_iam_role.eks_node_role.arn
 
