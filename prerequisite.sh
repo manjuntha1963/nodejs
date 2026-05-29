@@ -1,5 +1,4 @@
-```bash
-#!/bin/bash
+#!/usr/bin/env bash
 
 set -e
 
@@ -31,10 +30,9 @@ sudo apt install -y nodejs
 # Install PM2
 sudo npm install -g pm2
 
-
 # Install or Update AWS CLI v2
-curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" \
--o "awscliv2.zip"
+curl -o awscliv2.zip \
+https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip
 
 unzip -o awscliv2.zip
 
@@ -47,8 +45,10 @@ else
 fi
 
 # Install kubectl
-curl -LO "https://dl.k8s.io/release/$(curl -L -s \
-https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+KUBECTL_VERSION=$(curl -L -s https://dl.k8s.io/release/stable.txt)
+
+curl -LO \
+https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl
 
 chmod +x kubectl
 
@@ -56,12 +56,12 @@ sudo mv kubectl /usr/local/bin/
 
 # Install eksctl
 ARCH=amd64
-PLATFORM=$(uname -s)_$ARCH
+PLATFORM=$(uname -s)_${ARCH}
 
 curl -sLO \
-"https://github.com/eksctl-io/eksctl/releases/latest/download/eksctl_$PLATFORM.tar.gz"
+https://github.com/eksctl-io/eksctl/releases/latest/download/eksctl_${PLATFORM}.tar.gz
 
-tar -xzf eksctl_$PLATFORM.tar.gz -C /tmp
+tar -xzf eksctl_${PLATFORM}.tar.gz -C /tmp
 
 sudo install -m 0755 /tmp/eksctl /usr/local/bin
 
@@ -71,15 +71,15 @@ if ! command -v terraform >/dev/null 2>&1; then
     echo "Installing Terraform..."
 
     curl -fsSL https://apt.releases.hashicorp.com/gpg | \
-    gpg --dearmor | \
-    sudo tee /usr/share/keyrings/hashicorp-archive-keyring.gpg > /dev/null
+    sudo gpg --dearmor --batch --yes \
+    -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
 
-    echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] \
-    https://apt.releases.hashicorp.com \
-    $(lsb_release -cs) main" | \
-    sudo tee /etc/apt/sources.list.d/hashicorp.list
+    DISTRO=$(lsb_release -cs)
 
-    sudo apt update
+    echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com ${DISTRO} main" | \
+    sudo tee /etc/apt/sources.list.d/hashicorp.list > /dev/null
+
+    sudo apt update -y
 
     sudo apt install -y terraform
 
