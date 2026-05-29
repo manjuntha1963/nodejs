@@ -33,25 +33,21 @@ pipeline {
         stage('Run Prerequisites') {
             steps {
                 sh '''
-                    chmod +x prerequist.sh
-                    ./prerequist.sh
+                    chmod +x prerequisite.sh
+                    ./prerequisite.sh
                 '''
             }
         }
 
         stage('Install Dependencies') {
             steps {
-                sh '''
-                    npm install
-                '''
+                sh 'npm install'
             }
         }
 
         stage('Build/Test') {
             steps {
-                sh '''
-                    npm test || echo "No tests configured"
-                '''
+                sh 'npm test || echo "No tests configured"'
             }
         }
 
