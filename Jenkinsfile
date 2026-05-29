@@ -104,6 +104,20 @@ pipeline {
             }
         }
 
+
+stage('Terraform Apply') {
+    steps {
+        sh """
+            terraform init
+            terraform validate
+            terraform plan
+            terraform apply -auto-approve
+        """
+    }
+}
+```
+
+
         stage('Deploy to EKS') {
             steps {
                 sh """
