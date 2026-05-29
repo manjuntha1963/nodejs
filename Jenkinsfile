@@ -6,6 +6,7 @@ pipeline {
     }
 
     environment {
+
         AWS_ACCOUNT_ID = "654654305195"
         AWS_REGION = "us-east-1"
 
@@ -25,6 +26,7 @@ pipeline {
 
         stage('Checkout') {
             steps {
+
                 git branch: 'master',
                 url: 'https://github.com/manjuntha1963/nodejs.git'
             }
@@ -32,6 +34,7 @@ pipeline {
 
         stage('Run Prerequisites') {
             steps {
+
                 sh '''
                     chmod +x prerequisite.sh
                     ./prerequisite.sh
@@ -41,18 +44,21 @@ pipeline {
 
         stage('Install Dependencies') {
             steps {
+
                 sh 'npm install'
             }
         }
 
         stage('Build/Test') {
             steps {
+
                 sh 'npm test || echo "No tests configured"'
             }
         }
 
         stage('SonarQube Analysis') {
             steps {
+
                 withSonarQubeEnv('SonarServer') {
 
                     withCredentials([
@@ -81,6 +87,7 @@ pipeline {
 
         stage('Terraform Apply') {
             steps {
+
                 sh '''
                     terraform init
                     terraform validate
@@ -92,6 +99,7 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
+
                 sh '''
                     docker build -t ${ECR_REPO_NAME}:${IMAGE_TAG} .
                 '''
@@ -100,6 +108,7 @@ pipeline {
 
         stage('Scan Docker Image') {
             steps {
+
                 sh '''
                     trivy image ${ECR_REPO_NAME}:${IMAGE_TAG} || true
                 '''
@@ -108,7 +117,9 @@ pipeline {
 
         stage('Push to ECR') {
             steps {
+
                 sh '''
+
                     aws ecr describe-repositories \
                     --repository-names ${ECR_REPO_NAME} \
                     --region ${AWS_REGION} >/dev/null 2>&1 || \
@@ -135,7 +146,9 @@ pipeline {
 
         stage('Deploy to EKS') {
             steps {
+
                 sh '''
+
                     aws eks update-kubeconfig \
                     --region ${AWS_REGION} \
                     --name ${EKS_CLUSTER_NAME}
@@ -159,7 +172,9 @@ pipeline {
 
         stage('Install Monitoring Stack') {
             steps {
+
                 sh '''
+
                     helm repo add prometheus-community \
                     https://prometheus-community.github.io/helm-charts
 
@@ -168,17 +183,34 @@ pipeline {
 
                     helm repo update
 
+                    # Install Prometheus with LoadBalancer
                     helm upgrade --install prometheus \
                     prometheus-community/prometheus \
                     --namespace ${K8S_NAMESPACE} \
-                    --create-namespace
+                    --create-namespace \
+                    --set server.service.type=LoadBalancer \
+                    --set alertmanager.service.type=LoadBalancer \
+                    --set server.resources.requests.memory=256Mi \
+                    --set server.resources.requests.cpu=250m
 
+                    # Install Grafana with LoadBalancer
                     helm upgrade --install grafana \
                     grafana/grafana \
                     --namespace ${K8S_NAMESPACE} \
-                    --set adminPassword='admin'
+                    --set adminPassword='admin' \
+                    --set service.type=LoadBalancer
 
+                    echo "================ KUBERNETES SERVICES ================"
                     kubectl get svc -n ${K8S_NAMESPACE}
+
+                    echo "================ GRAFANA SERVICE ================"
+                    kubectl get svc grafana -n ${K8S_NAMESPACE}
+
+                    echo "================ PROMETHEUS SERVICE ================"
+                    kubectl get svc prometheus-server -n ${K8S_NAMESPACE}
+
+                    echo "================ POD STATUS ================"
+                    kubectl get pods -n ${K8S_NAMESPACE}
                 '''
             }
         }
@@ -187,15 +219,18 @@ pipeline {
     post {
 
         always {
+
             cleanWs()
         }
 
         success {
-            echo 'Pipeline completed successfully'
+
+            echo 'CI/CD Pipeline completed successfully'
         }
 
         failure {
-            echo 'Pipeline failed'
+
+            echo 'CI/CD Pipeline failed'
         }
     }
 }
