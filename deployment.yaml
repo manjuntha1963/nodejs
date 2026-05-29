@@ -1,0 +1,57 @@
+```yaml
+apiVersion: apps/v1
+
+kind: Deployment
+
+metadata:
+  name: myapp-deployment
+  namespace: default
+
+spec:
+  replicas: 2
+
+  selector:
+    matchLabels:
+      app: myapp
+
+  template:
+    metadata:
+      labels:
+        app: myapp
+
+    spec:
+      containers:
+      - name: myapp
+
+        image: IMAGE_URI
+
+        imagePullPolicy: Always
+
+        ports:
+        - containerPort: 3000
+
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 3000
+
+          initialDelaySeconds: 10
+          periodSeconds: 10
+
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 3000
+
+          initialDelaySeconds: 5
+          periodSeconds: 5
+```
