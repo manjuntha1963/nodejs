@@ -195,4 +195,3 @@ EOF
             echo "✅ Pipeline completed successfully!"
         }
     }
-}
