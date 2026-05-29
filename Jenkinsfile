@@ -1,3 +1,4 @@
+```groovy
 pipeline {
     agent any
 
@@ -17,9 +18,16 @@ pipeline {
     }
 
     stages {
+
         stage('Checkout') {
             steps {
                 git 'https://github.com/manjuntha1963/test.git'
+            }
+        }
+
+        stage('Prerequisites Setup') {
+            steps {
+                sh prerequist.sh
             }
         }
 
@@ -62,8 +70,8 @@ pipeline {
 
         stage('Scan Docker Image') {
             steps {
-                sh '''       
-                    ./bin/trivy image ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO_NAME}:${IMAGE_TAG} || echo "Vulnerabilities found"
+                sh '''
+                    trivy image ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO_NAME}:${IMAGE_TAG} || echo "Vulnerabilities found"
                 '''
             }
         }
@@ -71,19 +79,15 @@ pipeline {
         stage('Push to ECR') {
             steps {
                 sh '''
-                    # Ensure ECR repository exists
                     if ! aws ecr describe-repositories --repository-names ${ECR_REPO_NAME} --region ${AWS_REGION} >/dev/null 2>&1; then
-                        echo "ECR repository ${ECR_REPO_NAME} not found. Creating..."
+                        echo "Creating ECR repository..."
                         aws ecr create-repository --repository-name ${ECR_REPO_NAME} --region ${AWS_REGION}
-                    else
-                        echo "ECR repository ${ECR_REPO_NAME} already exists."
                     fi
 
-                    # Login to ECR
                     aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
 
-                    # Tag and push Docker image
                     docker tag ${ECR_REPO_NAME}:${IMAGE_TAG} ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO_NAME}:${IMAGE_TAG}
+
                     docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO_NAME}:${IMAGE_TAG}
                 '''
             }
@@ -94,46 +98,29 @@ pipeline {
                 sh '''
                     aws eks --region ${AWS_REGION} update-kubeconfig --name ${EKS_CLUSTER_NAME}
 
-                    # Deploy app
                     kubectl apply -f deployment.yaml
                     kubectl apply -f service.yaml
+                '''
+            }
+        }
 
         stage('Install Monitoring Stack & Import Kubernetes Dashboard') {
             steps {
                 sh '''
-                    # Add Helm repos
                     helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
                     helm repo add grafana https://grafana.github.io/helm-charts
                     helm repo update
 
-                    # Install Prometheus with emptyDir
                     helm upgrade --install prometheus prometheus-community/prometheus \
                         --namespace ${K8S_NAMESPACE} --create-namespace \
                         --set server.service.type=LoadBalancer \
-                        --set server.persistentVolume.enabled=false \
-                        --set server.image.repository=quay.io/prometheus/prometheus \
-                        --set server.image.tag=v2.44.0
+                        --set server.persistentVolume.enabled=false
 
-                    # Install Grafana with emptyDir
                     helm upgrade --install grafana grafana/grafana \
                         --namespace ${K8S_NAMESPACE} \
                         --set service.type=LoadBalancer \
                         --set persistence.enabled=false \
                         --set adminPassword='admin'
-
-                    # Wait for pods to be ready
-                    kubectl wait --namespace ${K8S_NAMESPACE} --for=condition=ready pod -l app.kubernetes.io/name=prometheus-server --timeout=600s || true
-                    kubectl wait --namespace ${K8S_NAMESPACE} --for=condition=ready pod -l app.kubernetes.io/name=grafana --timeout=600s || true
-
-                    # Get Grafana URL
-                    GRAFANA_URL="http://\$(kubectl get svc grafana -n ${K8S_NAMESPACE} -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'):80"
-                    echo "Grafana URL: \$GRAFANA_URL"
-
-                    # Import Kubernetes dashboard (ID 315)
-                    curl -s -X POST -H "Content-Type: application/json" \
-                        -d '{"dashboard": {"id":315},"overwrite": true,"inputs":[]}' \
-                        "\$GRAFANA_URL/api/dashboards/db" \
-                        --user admin:admin || echo "Dashboard import may require manual setup"
                 '''
             }
         }
@@ -144,7 +131,10 @@ pipeline {
             echo "❌ Pipeline failed!"
             cleanWs()
         }
+
         success {
             echo "✅ Pipeline completed successfully!"
         }
     }
+}
+```
