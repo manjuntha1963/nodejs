@@ -1,4 +1,3 @@
-```tf id="fv8mde"
 terraform {
   required_version = ">= 1.5.0"
 
@@ -261,4 +260,3 @@ resource "aws_eks_node_group" "eks_nodes" {
     Name = "eks-worker-node"
   }
 }
-```
