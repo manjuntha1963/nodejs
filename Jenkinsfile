@@ -8,19 +8,25 @@ pipeline {
     environment {
         AWS_ACCOUNT_ID = "654654305195"
         AWS_REGION = "us-east-1"
+
         ECR_REPO_NAME = "myapp"
         IMAGE_TAG = "latest"
+
         EKS_CLUSTER_NAME = "my-eks-cluster"
+
         DEPLOYMENT_NAME = "myapp-deployment"
         SERVICE_NAME = "myapp-service"
         K8S_NAMESPACE = "default"
+
+        IMAGE_URI = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO_NAME}:${IMAGE_TAG}"
     }
 
     stages {
 
         stage('Checkout') {
             steps {
-                git 'https://github.com/manjuntha1963/nodejs.git'
+                git branch: 'master',
+                url: 'https://github.com/manjuntha1963/nodejs.git'
             }
         }
 
@@ -35,21 +41,33 @@ pipeline {
 
         stage('Install Dependencies') {
             steps {
-                sh 'npm install'
+                sh '''
+                    npm install
+                '''
             }
         }
 
         stage('Build/Test') {
             steps {
-                sh 'npm test || echo "No tests configured"'
+                sh '''
+                    npm test || echo "No tests configured"
+                '''
             }
         }
 
         stage('SonarQube Analysis') {
             steps {
                 withSonarQubeEnv('SonarServer') {
-                    withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_AUTH_TOKEN')]) {
+
+                    withCredentials([
+                        string(
+                            credentialsId: 'sonarqube-token',
+                            variable: 'SONAR_AUTH_TOKEN'
+                        )
+                    ]) {
+
                         script {
+
                             def scannerHome = tool 'SonarScanner'
 
                             sh """
@@ -65,75 +83,87 @@ pipeline {
             }
         }
 
+        stage('Terraform Apply') {
+            steps {
+                sh '''
+                    terraform init
+                    terraform validate
+                    terraform plan
+                    terraform apply -auto-approve
+                '''
+            }
+        }
+
         stage('Build Docker Image') {
             steps {
-                sh """
+                sh '''
                     docker build -t ${ECR_REPO_NAME}:${IMAGE_TAG} .
-                """
+                '''
             }
         }
 
         stage('Scan Docker Image') {
             steps {
-                sh """
+                sh '''
                     trivy image ${ECR_REPO_NAME}:${IMAGE_TAG} || true
-                """
+                '''
             }
         }
 
         stage('Push to ECR') {
             steps {
-                sh """
+                sh '''
                     aws ecr describe-repositories \
                     --repository-names ${ECR_REPO_NAME} \
-                    --region ${AWS_REGION} || \
+                    --region ${AWS_REGION} >/dev/null 2>&1 || \
+
                     aws ecr create-repository \
                     --repository-name ${ECR_REPO_NAME} \
                     --region ${AWS_REGION}
 
-                    aws ecr get-login-password --region ${AWS_REGION} | \
-                    docker login --username AWS --password-stdin \
+                    aws ecr get-login-password \
+                    --region ${AWS_REGION} | \
+                    docker login \
+                    --username AWS \
+                    --password-stdin \
                     ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
 
-                    docker tag ${ECR_REPO_NAME}:${IMAGE_TAG} \
-                    ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO_NAME}:${IMAGE_TAG}
+                    docker tag \
+                    ${ECR_REPO_NAME}:${IMAGE_TAG} \
+                    ${IMAGE_URI}
 
-                    docker push \
-                    ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO_NAME}:${IMAGE_TAG}
-                """
+                    docker push ${IMAGE_URI}
+                '''
             }
         }
 
-
-stage('Terraform Apply') {
-    steps {
-        sh """
-            terraform init
-            terraform validate
-            terraform plan
-            terraform apply -auto-approve
-        """
-    }
-}
-```
-
-
         stage('Deploy to EKS') {
             steps {
-                sh """
+                sh '''
                     aws eks update-kubeconfig \
                     --region ${AWS_REGION} \
                     --name ${EKS_CLUSTER_NAME}
 
+                    export AWS_ACCOUNT_ID=${AWS_ACCOUNT_ID}
+                    export AWS_REGION=${AWS_REGION}
+                    export ECR_REPO_NAME=${ECR_REPO_NAME}
+                    export IMAGE_TAG=${IMAGE_TAG}
+                    export DEPLOYMENT_NAME=${DEPLOYMENT_NAME}
+                    export SERVICE_NAME=${SERVICE_NAME}
+                    export K8S_NAMESPACE=${K8S_NAMESPACE}
+
                     envsubst < deployment.yaml | kubectl apply -f -
                     envsubst < service.yaml | kubectl apply -f -
-                """
+
+                    kubectl rollout status deployment/${DEPLOYMENT_NAME} \
+                    -n ${K8S_NAMESPACE}
+                '''
             }
         }
 
         stage('Install Monitoring Stack') {
             steps {
-                sh """
+                sh '''
                     helm repo add prometheus-community \
                     https://prometheus-community.github.io/helm-charts
 
@@ -151,12 +181,19 @@ stage('Terraform Apply') {
                     grafana/grafana \
                     --namespace ${K8S_NAMESPACE} \
                     --set adminPassword='admin'
-                """
+
+                    kubectl get svc -n ${K8S_NAMESPACE}
+                '''
             }
         }
     }
 
     post {
+
+        always {
+            cleanWs()
+        }
+
         success {
             echo 'Pipeline completed successfully'
         }
