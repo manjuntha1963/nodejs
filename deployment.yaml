@@ -1,57 +1,20 @@
-```yaml
 apiVersion: apps/v1
-
 kind: Deployment
-
 metadata:
-  name: myapp-deployment
-  namespace: default
-
+  name: ${DEPLOYMENT_NAME}
+  namespace: ${K8S_NAMESPACE}
 spec:
   replicas: 2
-
   selector:
     matchLabels:
-      app: myapp
-
+      app: ${DEPLOYMENT_NAME}
   template:
     metadata:
       labels:
-        app: myapp
-
+        app: ${DEPLOYMENT_NAME}
     spec:
       containers:
-      - name: myapp
-
-        image: IMAGE_URI
-
-        imagePullPolicy: Always
-
+      - name: ${DEPLOYMENT_NAME}
+        image: ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO_NAME}:${IMAGE_TAG}
         ports:
-        - containerPort: 3000
-
-        resources:
-          requests:
-            memory: "128Mi"
-            cpu: "100m"
-
-          limits:
-            memory: "256Mi"
-            cpu: "200m"
-
-        livenessProbe:
-          httpGet:
-            path: /
-            port: 3000
-
-          initialDelaySeconds: 10
-          periodSeconds: 10
-
-        readinessProbe:
-          httpGet:
-            path: /
-            port: 3000
-
-          initialDelaySeconds: 5
-          periodSeconds: 5
-```
+        - containerPort: 80
