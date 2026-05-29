@@ -1,7 +1,7 @@
-```bash
 #!/bin/bash
 
 set -e
+export DEBIAN_FRONTEND=noninteractive
 
 echo "Updating system..."
 sudo apt update -y && sudo apt upgrade -y
@@ -37,9 +37,18 @@ sudo usermod -aG docker ubuntu
 sudo chmod 666 /var/run/docker.sock
 
 # Install AWS CLI v2
+# Install or Update AWS CLI v2
 curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+
 unzip -o awscliv2.zip
-sudo ./aws/install
+
+if command -v aws >/dev/null 2>&1; then
+    echo "AWS CLI already installed. Updating..."
+    sudo ./aws/install --update
+else
+    echo "Installing AWS CLI..."
+    sudo ./aws/install
+fi
 
 # Install kubectl
 curl -LO "https://dl.k8s.io/release/$(curl -L -s \
