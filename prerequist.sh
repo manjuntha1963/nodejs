@@ -9,87 +9,67 @@ choco install terraform -y
 
 terraform -version
 
-# Update and Upgrade System
-    sudo apt update -y && sudo apt upgrade -y
+# Update system
+sudo apt update && sudo apt upgrade -y
 
-    # Install Required Packages
-    sudo apt install -y unzip maven git
+# Install Node.js (LTS recommended)
+curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
+sudo apt install -y nodejs
 
-    # Install kubectl
-    sudo apt-get update
-    sudo apt-get install -y apt-transport-https ca-certificates curl gpg
-    curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.31/deb/Release.key | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
-    echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.31/deb/ /' | sudo tee /etc/apt/sources.list.d/kubernetes.list
-    sudo apt-get update
-    sudo apt-get install -y kubectl
-    sudo apt-mark hold kubectl
+sudo npm install -g pm2
 
-    # Install Terraform
-    curl -fsSL https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
-    echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
-    sudo apt update
-    sudo apt install -y terraform
+Verify installation:
 
-    # Install awcli
-    curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-    unzip awscliv2.zip
-    sudo ./aws/install
+pm2 -v
 
-    # Install eksctl
-    curl -sSL "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_$(uname -s)_amd64.tar.gz" -o eksctl.tar.gz
-    tar -xzf eksctl.tar.gz
-    sudo mv eksctl /usr/local/bin
-    sudo chmod +x /usr/local/bin/eksctl
-
-    ### **Step 1: Install Helm (if not installed)**
-    curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
-    chmod +x get_helm.sh
-    ./get_helm.sh
-
-    # Install Jenkins
-    # Add the Jenkins repository key
-    curl -fsSL https://pkg.jenkins.io/debian/jenkins.io-2023.key | sudo tee \
-    /usr/share/keyrings/jenkins-keyring.asc > /dev/null
-    echo "deb [signed-by=/usr/share/keyrings/jenkins-keyring.asc] \
-    https://pkg.jenkins.io/debian binary/" | sudo tee \
-    /etc/apt/sources.list.d/jenkins.list > /dev/null
-    sudo apt update && sudo apt install jenkins -y
-    sudo systemctl enable --now jenkins
-
-    ### **Step 1: Install Trivy**
-    # Add Aqua Security repository
-    sudo apt install wget -y
-    wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo tee /etc/apt/trusted.gpg.d/trivy.asc
-    echo "deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/trivy.list
-    sudo apt update && sudo apt install trivy -y
+# Check versions
+node -v
+npm -v
 
 
-    # Install dependencies
-    sudo apt install apt-transport-https ca-certificates curl software-properties-common -y
-    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] \
-    https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-    sudo apt update && sudo apt install docker-ce docker-ce-cli containerd.io -y
-    sudo usermod -aG docker $USER
-    sudo systemctl enable --now jenkins
-    sudo systemctl enable --now docker
-    sudo usermod -aG docker jenkins
-    sudo chmod 666 /var/run/docker.sock
-    sudo systemctl restart jenkins  # Ensure Jenkins recognizes Docker permissions
-    sudo cat /var/lib/jenkins/secrets/initialAdminPassword
+# Install AWS CLI v2
 
-    # Sonarqube instal
-    docker run --name sonarqube-custom -dp 9000:9000 sonarqube:community
+sudo apt install unzip -y
+curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+unzip awscliv2.zip
+sudo ./aws/install
 
-     # update credntial to update
-    aws eks update-kubeconfig --name my-eks-cluster --region us-east-1
-    sudo chown -R jenkins:jenkins /var/lib/jenkins/.kube
-    sudo chmod 600 /var/lib/jenkins/.kube/config
 
-    jenkins --version
-    docker --version
-    terraform --version
-    kubectl version --client
-    aws --version
-    trivy --version
-    eksctl version
+# Install kubectl
+
+curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+chmod +x kubectl
+sudo mv kubectl /usr/local/bin/
+
+
+# EKSCTl  cli instalation
+
+ARCH=amd64
+PLATFORM=$(uname -s)_$ARCH
+
+curl -sLO "https://github.com/eksctl-io/eksctl/releases/latest/download/eksctl_$PLATFORM.tar.gz"
+
+# (Optional) Verify checksum
+curl -sL "https://github.com/eksctl-io/eksctl/releases/latest/download/eksctl_checksums.txt" | grep $PLATFORM | sha256sum --check
+
+tar -xzf eksctl_$PLATFORM.tar.gz -C /tmp && rm eksctl_$PLATFORM.tar.gz
+
+sudo install -m 0755 /tmp/eksctl /usr/local/bin && rm /tmp/eksctl
+
+
+# Install Docker
+sudo apt update
+sudo apt  install docker.io -y
+
+# Allow jenkins and ubuntu users to run docker
+sudo usermod -aG docker jenkins
+sudo usermod -aG docker ubuntu
+
+# Restart Jenkins to apply group changes
+sudo systemctl restart jenkins
+
+Step 2: Run SonarQube in Docker
+# Pull and run SonarQube (LTS version)
+sudo docker run -d --name sonarqube \
+  -p 9000:9000 \
+  sonarqube:lts
